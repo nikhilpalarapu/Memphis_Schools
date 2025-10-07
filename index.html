@@ -198,11 +198,13 @@
         font-size: 12px;
       }
       .dot {
+        display: inline-block;
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        display: inline-block;
+        vertical-align: middle;
       }
+
       .dot.critical {
         background: #3b82f6;
       } /* BLUE for critical */
@@ -531,6 +533,26 @@
       #backdrop.show {
         display: block;
       }
+
+      #leadLegend {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      #leadLegend .legend-row {
+        display: flex;
+        align-items: center; /* center, not stretch */
+        gap: 8px;
+        line-height: 1.25;
+      }
+      #leadLegend .legend-row .dot {
+        flex: 0 0 auto; /* extra safety for older browsers */
+      }
+
+      #leadLegend .legend-row span:last-child {
+        font-size: 12px;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -608,13 +630,25 @@
         </div>
 
         <div class="card controls">
-          <label>Condition filter</label>
+          <label>Lead risk category</label>
           <div id="conditionChips" class="chips"></div>
-          <div class="legend" style="margin-top: 8px">
-            <span class="dot critical"></span> Critical
-            <span class="dot atrisk" style="margin-left: 10px"></span> At Risk
-            <span class="dot other" style="margin-left: 10px"></span> Other
+          <div class="legend" id="leadLegend" style="margin-top: 8px">
+            <div class="legend-row">
+              <span class="dot critical" aria-hidden="true"></span>
+              <span
+                >Schools built before 1978 that may contain lead-based paint and
+                lead water lines</span
+              >
+            </div>
+            <div class="legend-row">
+              <span class="dot atrisk" aria-hidden="true"></span>
+              <span
+                >Schools built 1978–1988 that may contain lead water line or
+                lead solder</span
+              >
+            </div>
           </div>
+
           <div class="count" id="visibleCount"></div>
         </div>
 
@@ -626,6 +660,13 @@
           </div>
           <div class="muted" style="margin-top: 6px">
             Filters rows where <em>Age</em> is between the two values.
+          </div>
+          <div class="legend" style="margin-top: 8px">
+            <span class="dot other" aria-hidden="true"></span>
+            <span
+              >Cluster of nearby schools — click to open schools and built
+              years</span
+            >
           </div>
         </div>
       </aside>
@@ -649,8 +690,8 @@
         <!-- Mini HUD (top-right) -->
         <div id="miniHUD" role="status" aria-live="polite">
           <div class="legend">
-            <span class="dot critical" title="Critical (Blue)"></span>
-            <span class="dot atrisk" title="At Risk (Red)"></span>
+            <span class="dot critical" title="Pre-1978 (Blue)"></span>
+            <span class="dot atrisk" title="1978–1988 (Red)"></span>
           </div>
           <div class="summary" id="miniSummary">Filters: —</div>
         </div>
@@ -677,11 +718,11 @@
           </div>
           <div id="dirContent">
             <div class="section">
-              <h3>Critical</h3>
+              <h3>Pre-1978</h3>
               <div id="listCritical" class="list"></div>
             </div>
             <div class="section">
-              <h3>At Risk</h3>
+              <h3>1978-1988</h3>
               <div id="listAtRisk" class="list"></div>
             </div>
           </div>
@@ -887,6 +928,22 @@
             .replaceAll("'", "&#039;");
         }
 
+        function leadCategoryFor(year) {
+          const y = +year;
+          if (!isFinite(y)) return "—";
+          if (y < 1978) return "Pre-1978";
+          if (y >= 1978 && y <= 1988) return "1978–1988";
+          return "—";
+        }
+
+        function leadCategoryFor(yearBuilt) {
+          const y = +yearBuilt;
+          if (!isFinite(y)) return null;
+          if (y < 1978) return "Pre-1978";
+          if (y >= 1978 && y <= 1988) return "1978–1988";
+          return null; // outside the requested risk windows
+        }
+
         function enrichRowsWithDistricts() {
           for (const r of allRows) {
             const lat = Number(r.Latitude),
@@ -899,25 +956,28 @@
           const lat = +row.Latitude,
             lon = +row.Longitude;
           if (!isFinite(lat) || !isFinite(lon)) return null;
-          // Critical = BLUE, At Risk = RED, Other = BLUE
-          const icon = isAtRisk(row.Condition) ? RedIcon : BlueIcon;
+          if (!row.LeadCategory) return null; // show only our two lead windows
+
+          // Blue = Pre-1978, Red = 1978–1988
+          const icon = row.LeadCategory === "1978–1988" ? RedIcon : BlueIcon;
+
           const m = L.marker([lat, lon], { icon });
           m.bindTooltip(
             `<span class="tooltip-title">${escapeHtml(row.School)}</span>`,
             { sticky: true, direction: "top", offset: [0, -8] }
           );
           m.bindPopup(`
-        <div class="popup">
-          <div style="font-weight:700;font-size:14px;margin-bottom:6px;">${escapeHtml(
-            row.School
-          )}</div>
-          <dl>
-            <dt>Condition</dt><dd>${escapeHtml(row.Condition || "—")}</dd>
-            <dt>Year Built</dt><dd>${escapeHtml(row.YearBuilt)}</dd>
-            <dt>Age</dt><dd>${escapeHtml(row.Age)}</dd>
-            <dt>District</dt><dd>${escapeHtml(row.District || "—")}</dd>
-          </dl>
-        </div>`);
+    <div class="popup">
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px;">${escapeHtml(
+        row.School
+      )}</div>
+      <dl>
+        <dt>Lead category</dt><dd>${escapeHtml(row.LeadCategory || "—")}</dd>
+        <dt>Year Built</dt><dd>${escapeHtml(row.YearBuilt)}</dd>
+        <dt>Age</dt><dd>${escapeHtml(row.Age)}</dd>
+        <dt>District</dt><dd>${escapeHtml(row.District || "—")}</dd>
+      </dl>
+    </div>`);
           return m;
         }
 
@@ -951,20 +1011,20 @@
 
         function buildChips() {
           conditionChipsEl.innerHTML = "";
-          const values = Array.from(conditionSet).sort();
-          for (const val of values) {
+          ["Pre-1978", "1978–1988"].forEach((val) => {
             const el = document.createElement("button");
             el.type = "button";
             el.className = "chip active";
-            el.textContent = val || "Unknown";
+            el.textContent = val;
             el.dataset.value = val;
             el.addEventListener("click", () => {
               el.classList.toggle("active");
               applyFilters(true);
             });
             conditionChipsEl.appendChild(el);
-          }
+          });
         }
+
         function activeConditions() {
           const out = [];
           for (const el of conditionChipsEl.querySelectorAll(".chip"))
@@ -976,14 +1036,16 @@
           const max = +(document.getElementById("ageMax").value || "999");
           return [min, max];
         }
+
         function passesFilters(row) {
           const [amin, amax] = getAgeBounds();
           const a = +row.Age;
           if (isFinite(amin) && a < amin) return false;
           if (isFinite(amax) && a > amax) return false;
-          return activeConditions().includes(
-            String(row.Condition || "Unknown")
-          );
+
+          const act = activeConditions(); // lead categories now
+          if (!row.LeadCategory) return false; // outside 1978 windows
+          return act.includes(row.LeadCategory);
         }
 
         function getCountyName(props = {}) {
@@ -1053,12 +1115,12 @@
         }
 
         function updateMiniSummary(visibleCount) {
-          const act = activeConditions();
+          const act = activeConditions(); // lead categories
           const [amin, amax] = getAgeBounds();
-          const condText = act.length ? act.join(", ") : "—";
+          const leadText = act.length ? act.join(", ") : "—";
           const ageText = `Age ${amin}–${amax}`;
           const parts = [];
-          if (condText && condText !== "—") parts.push(condText);
+          if (leadText && leadText !== "—") parts.push(leadText);
           if (ageText) parts.push(ageText);
           const body = parts.length ? parts.join(", ") : "—";
           miniSummaryEl.textContent = `Filters: ${body} (${visibleCount} schools)`;
@@ -1134,10 +1196,12 @@
               School: r.School,
               YearBuilt: r.YearBuilt,
               Age: r.Age,
-              Condition: r.Condition || "Unknown",
+              Condition: r.Condition || "Unknown", // left in place so nothing else breaks
+              LeadCategory: leadCategoryFor(r.YearBuilt),
               Latitude: +r.Latitude,
               Longitude: +r.Longitude,
             }));
+
           allRows = rows;
           dataLoaded = true;
           maybeEnrich(); // will enrich once boundary is ready
@@ -1390,33 +1454,49 @@
           let rows = allRows
             .filter(passesFilters)
             .filter((r) => pointInsideMemphis(+r.Latitude, +r.Longitude));
-          const crit = rows
-            .filter((r) => isCritical(r.Condition))
+
+          const pre = rows
+            .filter((r) => r.LeadCategory === "Pre-1978")
             .sort((a, b) => String(a.School).localeCompare(String(b.School)));
-          const risk = rows
-            .filter((r) => isAtRisk(r.Condition))
+
+          const mid = rows
+            .filter((r) => r.LeadCategory === "1978–1988")
             .sort((a, b) => String(a.School).localeCompare(String(b.School)));
+
           const q = dirSearchEl.value.trim().toLowerCase();
           const f = (arr) =>
             q
               ? arr.filter((r) => String(r.School).toLowerCase().includes(q))
               : arr;
-          buildList(listCriticalEl, f(crit));
-          buildList(listAtRiskEl, f(risk));
+
+          buildList(listCriticalEl, f(pre));
+          buildList(listAtRiskEl, f(mid));
         }
+
         function buildList(container, rows) {
           container.innerHTML = "";
           for (const r of rows) {
             const div = document.createElement("div");
             div.className = "item";
+
+            // Use r.LeadCategory if your data already has it; otherwise fall back to helper.
+            const leadCat =
+              (r.LeadCategory && String(r.LeadCategory)) ||
+              (typeof leadCategoryFor === "function"
+                ? leadCategoryFor(r.YearBuilt)
+                : "—");
+
             div.innerHTML = `
-  <div>
-    <div class="name">${escapeHtml(r.School)}</div>
-    <div class="meta">Age ${escapeHtml(r.Age ?? "—")} · Built ${escapeHtml(r.YearBuilt ?? "—")}</div>
-  </div>
-  <div class="meta">${escapeHtml(r.Condition || "—")}</div>`;
+      <div>
+        <div class="name">${escapeHtml(r.School)}</div>
+        <div class="meta">Built ${escapeHtml(
+          r.YearBuilt ?? "—"
+        )} · Lead risk category: ${escapeHtml(leadCat)}</div>
+      </div>
+      <div class="meta">Age ${escapeHtml(r.Age ?? "—")}</div>`;
+
             div.addEventListener("click", () => {
-              jumpToSchool(r, true); // will close directory, fly, popup, pulse
+              jumpToSchool(r, true);
             });
             container.appendChild(div);
           }
