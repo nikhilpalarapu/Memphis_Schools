@@ -175,6 +175,14 @@
         flex: 1;
       }
 
+      #searchRow input {
+        flex: 1 1 auto;
+      }
+      #searchRow .btn {
+        flex: 0 0 auto;
+        padding: 10px 12px;
+      }
+
       .btn {
         background: linear-gradient(135deg, var(--brand), var(--accent));
         color: #0b1220;
@@ -201,7 +209,7 @@
         display: inline-block;
         width: 10px;
         height: 10px;
-        aspect-ratio: 1 / 1;  
+        aspect-ratio: 1 / 1;
         border-radius: 50%;
         vertical-align: middle;
       }
@@ -405,19 +413,67 @@
       }
 
       /* Empty-state overlay */
+      /* Replace the whole existing empty-state CSS block with this */
       #emptyState {
         position: absolute;
-        inset: auto 12px 12px 12px;
-        z-index: 540;
-        display: none;
+        inset: 0;
+        z-index: 560;
+        display: none; /* JS toggles to "block"; centering still works */
+        pointer-events: none; /* let clicks pass through background */
       }
+
       .empty-card {
-        background: rgba(17, 24, 39, 0.95);
+        position: absolute; /* center regardless of parent display */
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+
+        pointer-events: auto; /* allow interaction with buttons */
+        max-width: 560px;
+        width: calc(100% - 48px);
+        text-align: center;
+        background: rgba(17, 24, 39, 0.92);
         border: 1px solid #1f2937;
-        border-radius: 12px;
-        padding: 14px 16px;
+        border-radius: 16px;
+        padding: 22px 24px 24px 24px;
         color: var(--text);
-        font-size: 14px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+
+      /* Close (X) button */
+      .empty-card .empty-close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1;
+        padding: 6px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .empty-card .empty-close:hover {
+        background: #0b1220;
+        color: #e5e7eb;
+      }
+
+      .empty-card .empty-icon {
+        width: 32px;
+        height: 32px;
+        margin: 0 auto 10px;
+        opacity: 0.9;
+      }
+      .empty-card .empty-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 6px 0 6px;
+      }
+      .empty-card .empty-sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 14px;
       }
 
       /* North indicator (top-left) */
@@ -555,7 +611,9 @@
         color: var(--muted);
       }
 
-      #ageCard { display: none !important; }
+      #ageCard {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
@@ -600,17 +658,10 @@
               align-items: center;
             "
           >
-            <button
-              id="openDirectory"
-              class="btn secondary"
-              title="Browse schools list"
-            >
+            <button id="openDirectory" class="btn" title="Browse schools list">
               Directory
             </button>
             <!-- Apply Filters button removed (auto-apply) -->
-            <button id="resetBtn" class="btn" title="Clear filters">
-              Reset
-            </button>
           </div>
         </div>
         <div class="muted">
@@ -619,12 +670,16 @@
 
         <div class="card controls" id="searchWrap">
           <label for="search">Search school</label>
-          <input
-            id="search"
-            type="text"
-            placeholder="Type to search… (e.g., Whitehaven)"
-            autocomplete="off"
-          />
+
+          <div class="row" id="searchRow">
+            <input
+              id="search"
+              type="text"
+              placeholder="Type to search… (e.g., Whitehaven)"
+              autocomplete="off"
+            />
+          </div>
+
           <div class="muted" style="margin-top: 6px">
             Start typing to see schools (prefix match). Press Enter to jump to
             the top match.
@@ -682,7 +737,6 @@
             >
           </div>
         </div>
-
       </aside>
 
       <!-- Map area -->
@@ -711,8 +765,35 @@
         </div>
 
         <!-- Empty state -->
+        <!-- Replace your current empty-state block with this -->
         <div id="emptyState">
-          <div class="empty-card">No results — try clearing filters.</div>
+          <div class="empty-card">
+            <button class="empty-close" id="emptyClose" aria-label="Dismiss">
+              ✕
+            </button>
+            <div class="empty-icon" aria-hidden="true">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <circle
+                  cx="11"
+                  cy="11"
+                  r="7"
+                  stroke="#67e8f9"
+                  stroke-width="2"
+                />
+                <path
+                  d="M16.5 16.5L21 21"
+                  stroke="#67e8f9"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </div>
+            <div class="empty-title">Choose a lead risk category</div>
+            <div class="empty-sub">
+              Select “Pre-1978” or “1978–1988” to display schools.
+            </div>
+            <button id="emptyReset" class="btn">Show all schools</button>
+          </div>
         </div>
 
         <!-- Directory (overlay) -->
@@ -916,6 +997,10 @@
             .includes("critical");
         }
 
+        function isReady() {
+          return dataLoaded && boundaryLoaded;
+        }
+
         function findDistrictNameFor(lat, lon) {
           if (!districtPolys.length || !isFinite(lat) || !isFinite(lon))
             return null;
@@ -956,6 +1041,30 @@
           if (y < 1978) return "Pre-1978";
           if (y >= 1978 && y <= 1988) return "1978–1988";
           return null; // outside the requested risk windows
+        }
+
+        function doReset() {
+          // turn both chips on
+          for (const chip of conditionChipsEl.querySelectorAll(".chip")) {
+            chip.classList.add("active");
+          }
+          // age inputs (kept for logic even if hidden)
+          const ageMinEl = document.getElementById("ageMin");
+          const ageMaxEl = document.getElementById("ageMax");
+          if (ageMinEl) ageMinEl.value = 0;
+          if (ageMaxEl) ageMaxEl.value = 200;
+
+          // clear search + suggestions
+          const searchEl = document.getElementById("search");
+          if (searchEl) searchEl.value = "";
+          const sugg = document.getElementById("searchSuggestions");
+          if (sugg) {
+            sugg.style.display = "none";
+            sugg.innerHTML = "";
+          }
+
+          // re-render with loader
+          applyFilters(true);
         }
 
         function enrichRowsWithDistricts() {
@@ -1045,6 +1154,11 @@
             if (el.classList.contains("active")) out.push(el.dataset.value);
           return out;
         }
+
+        function hasAnyLeadFilterSelected() {
+          return activeConditions().length > 0;
+        }
+
         function getAgeBounds() {
           const min = +(document.getElementById("ageMin").value || "0");
           const max = +(document.getElementById("ageMax").value || "999");
@@ -1128,25 +1242,31 @@
           }
         }
 
-        function updateMiniSummary(visibleCount) {
-          const act = activeConditions(); // lead categories
-          const [amin, amax] = getAgeBounds();
-          const leadText = act.length ? act.join(", ") : "—";
-          const ageText = `Age ${amin}–${amax}`;
-          const parts = [];
-          if (leadText && leadText !== "—") parts.push(leadText);
-          if (ageText) parts.push(ageText);
-          const body = parts.length ? parts.join(", ") : "—";
-          miniSummaryEl.textContent = `Filters: ${body} (${visibleCount} schools)`;
+        function updateMiniSummary(/* visibleCount */) {
+          // Only show the selected lead categories, nothing else
+          const act = activeConditions();
+          // show a hyphen range for 1978-1988 even if chip text uses an en dash
+          const leadText = act.length
+            ? act.map((v) => v.replace("1978–1988", "1978-1988")).join(", ")
+            : "—";
+          miniSummaryEl.textContent = `Filters: ${leadText}`;
         }
 
         function render() {
+          // Avoid any empty-state flicker before both resources are ready
+          if (!isReady()) {
+            emptyStateEl.style.display = "none";
+            return 0;
+          }
+
           clusterGroup.clearLayers();
           markerByKey.clear();
           markerByLabel.clear();
+
           let rows = allRows
             .filter(passesFilters)
             .filter((r) => pointInsideMemphis(+r.Latitude, +r.Longitude));
+
           for (const r of rows) {
             const m = rowToMarker(r);
             if (m) {
@@ -1155,10 +1275,15 @@
               if (r.Label != null) markerByLabel.set(String(r.Label).trim(), m);
             }
           }
+
           visibleCountEl.textContent = `${rows.length} of ${allRows.length} visible`;
           updateMiniSummary(rows.length);
-          // Empty state
-          emptyStateEl.style.display = rows.length ? "none" : "block";
+
+          // Show empty card ONLY when no lead-risk chips are selected (and we are ready)
+          emptyStateEl.style.display = hasAnyLeadFilterSelected()
+            ? "none"
+            : "block";
+
           return rows.length;
         }
 
@@ -1218,24 +1343,27 @@
 
           allRows = rows;
           dataLoaded = true;
-          maybeEnrich(); // will enrich once boundary is ready
+
+          // Build chips first so render() never sees "no chips" at startup
           conditionSet.clear();
           for (const r of rows)
             conditionSet.add(String(r.Condition || "Unknown"));
           buildChips();
+
           fuse = new Fuse(rows, {
             keys: ["School"],
             threshold: 0.3,
             ignoreLocation: true,
           });
 
+          // Now it's safe for maybeEnrich() to trigger render()
+          maybeEnrich(); // will enrich once boundary is ready
+
           wireSearchTypeahead(rows);
           wireEnterJump();
 
           applyFilters(false); // first render
           refreshDirectory();
-          // Try hash deep-link after first render
-          handleHashLink();
         }
 
         function wireEnterJump() {
@@ -1518,6 +1646,8 @@
 
         // === Apply filters (auto with loader) ===
         function applyFilters(showLoader) {
+          if (!isReady()) return; // prevent early render (kills the blink)
+
           if (showLoader) showLoading(true, "Applying filters…");
           setTimeout(() => {
             render();
@@ -1540,14 +1670,34 @@
           .getElementById("ageMax")
           .addEventListener("change", () => applyFilters(true));
 
-        document.getElementById("resetBtn").addEventListener("click", () => {
-          for (const chip of conditionChipsEl.querySelectorAll(".chip"))
-            chip.classList.add("active");
-          document.getElementById("ageMin").value = 0;
-          document.getElementById("ageMax").value = 200;
-          document.getElementById("search").value = "";
-          document.getElementById("searchSuggestions").style.display = "none";
-          applyFilters(true);
+        const resetBtn = document.getElementById("resetBtn");
+        if (resetBtn) resetBtn.addEventListener("click", doReset);
+
+        const searchInputEl = document.getElementById("search");
+        if (searchInputEl) {
+          searchInputEl.addEventListener("focus", () => {
+            if (searchInputEl.value !== "") {
+              searchInputEl.value = "";
+              const box = document.getElementById("searchSuggestions");
+              if (box) {
+                box.style.display = "none";
+                box.innerHTML = "";
+              }
+            }
+          });
+        }
+
+        // Empty-state reset button → reuse existing Reset behavior
+        document.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "emptyReset") {
+            doReset();
+          }
+        });
+
+        document.addEventListener("click", (e) => {
+          if (e.target && e.target.id === "emptyClose") {
+            document.getElementById("emptyState").style.display = "none";
+          }
         });
 
         // Directory open/close
