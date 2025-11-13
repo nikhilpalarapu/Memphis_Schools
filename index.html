@@ -701,7 +701,7 @@
             <div class="legend-row">
               <span class="dot atrisk" aria-hidden="true"></span>
               <span
-                >Schools built 1978–1988 that may contain lead water line or
+                >Schools built 1978–1987 that may contain lead water line or
                 lead solder</span
               >
             </div>
@@ -759,7 +759,7 @@
         <div id="miniHUD" role="status" aria-live="polite">
           <div class="legend">
             <span class="dot critical" title="Pre-1978 (Blue)"></span>
-            <span class="dot atrisk" title="1978–1988 (Red)"></span>
+            <span class="dot atrisk" title="1978–1987 (Red)"></span>
           </div>
           <div class="summary" id="miniSummary">Filters: —</div>
         </div>
@@ -817,7 +817,7 @@
               <div id="listCritical" class="list"></div>
             </div>
             <div class="section">
-              <h3>1978-1988</h3>
+              <h3>1978-1987</h3>
               <div id="listAtRisk" class="list"></div>
             </div>
           </div>
@@ -1031,7 +1031,7 @@
           const y = +year;
           if (!isFinite(y)) return "—";
           if (y < 1978) return "Pre-1978";
-          if (y >= 1978 && y <= 1988) return "1978–1988";
+          if (y >= 1978 && y <= 1987) return "1978–1987";
           return "—";
         }
 
@@ -1039,7 +1039,7 @@
           const y = +yearBuilt;
           if (!isFinite(y)) return null;
           if (y < 1978) return "Pre-1978";
-          if (y >= 1978 && y <= 1988) return "1978–1988";
+          if (y >= 1978 && y <= 1987) return "1978–1987";
           return null; // outside the requested risk windows
         }
 
@@ -1082,7 +1082,7 @@
           if (!row.LeadCategory) return null; // show only our two lead windows
 
           // Blue = Pre-1978, Red = 1978–1988
-          const icon = row.LeadCategory === "1978–1988" ? RedIcon : BlueIcon;
+          const icon = row.LeadCategory === "1978–1987" ? RedIcon : BlueIcon;
 
           const m = L.marker([lat, lon], { icon });
           m.bindTooltip(
@@ -1134,7 +1134,7 @@
 
         function buildChips() {
           conditionChipsEl.innerHTML = "";
-          ["Pre-1978", "1978–1988"].forEach((val) => {
+          ["Pre-1978", "1978–1987"].forEach((val) => {
             const el = document.createElement("button");
             el.type = "button";
             el.className = "chip active";
@@ -1247,7 +1247,7 @@
           const act = activeConditions();
           // show a hyphen range for 1978-1988 even if chip text uses an en dash
           const leadText = act.length
-            ? act.map((v) => v.replace("1978–1988", "1978-1988")).join(", ")
+            ? act.map((v) => v.replace("1978–1987", "1978-1987")).join(", ")
             : "—";
           miniSummaryEl.textContent = `Filters: ${leadText}`;
         }
@@ -1602,7 +1602,7 @@
             .sort((a, b) => String(a.School).localeCompare(String(b.School)));
 
           const mid = rows
-            .filter((r) => r.LeadCategory === "1978–1988")
+            .filter((r) => r.LeadCategory === "1978–1987")
             .sort((a, b) => String(a.School).localeCompare(String(b.School)));
 
           const q = dirSearchEl.value.trim().toLowerCase();
